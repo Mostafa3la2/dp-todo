@@ -8,15 +8,54 @@
 
 import UIKit
 import CoreData
-
+import UserNotifications
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
-
+    
+    let center = UNUserNotificationCenter.current()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // this makes sure we create default categories only first time the app runs
+        if !UserDefaults.standard.bool(forKey: "HasDefaultCategories"){
+            initDefaultCategories { (success) in
+                UserDefaults.standard.set(true, forKey: "HasDefaultCategories")
+            }
+        }
+        //configuring notifications by first asking to allow notifications
+        let options : UNAuthorizationOptions = [.alert,.badge,.sound]
+        center.requestAuthorization(options: options) { (granted, error) in
+            if !granted{
+                print("something went wrong")
+            }
+        }
+        
+        if(UserDefaults.standard.bool(forKey: "notifications")){
+        let content = UNMutableNotificationContent()
+        content.title = "Have time to check your todo list?"
+        content.sound = UNNotificationSound.default()
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .none
+        dateFormatter.timeStyle = .short
+        //this time can be configured on a daily basis or calculated based on the completion date
+        let date = dateFormatter.date(from: "8:37 PM")
+        let triggerDaily = Calendar.current.dateComponents([.hour,.minute], from: date!)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDaily, repeats: false)
+        let identifier = "UYLLocalNotification"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        center.add(request) { (error) in
+            if let error = error{
+                print("cant send notification")
+            }
+        }
+        
+        }
+        
+        
+        
+        
         return true
     }
 
@@ -86,6 +125,29 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 let nserror = error as NSError
                 fatalError("Unresolved error \(nserror), \(nserror.userInfo)")
             }
+        }
+    }
+    
+    // function which pre populates primary categories
+    func initDefaultCategories(completion:(_ finished:Bool)->()){
+        guard let managedContext = appDelegate?.persistentContainer.viewContext else {return}
+        
+        let categoryWork = Category(context: managedContext)
+        categoryWork.categoryName = "Work"
+        categoryWork.categoryColour = "Red"
+        let categoryHobby = Category(context: managedContext)
+        categoryHobby.categoryName = "Hobby"
+        categoryHobby.categoryColour = "Blue"
+        let categoryHealth = Category(context: managedContext)
+        categoryHealth.categoryName = "Health"
+        categoryHealth.categoryColour = "Green"
+        
+        do{
+            try managedContext.save()
+            completion(true)
+        }catch{
+            debugPrint(error.localizedDescription)
+            completion(false)
         }
     }
 
